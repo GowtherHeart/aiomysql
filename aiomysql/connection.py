@@ -53,7 +53,7 @@ def connect(host="localhost", user=None, password="",
             connect_timeout=None, read_default_group=None,
             autocommit=False, echo=False,
             local_infile=False, loop=None, ssl=None, auth_plugin='',
-            program_name='', server_public_key=None):
+            program_name='', server_public_key=None, read_packet_timeout=3):
     """See connections.Connection.__init__() for information about
     defaults."""
     coro = _connect(host=host, user=user, password=password, db=db,
@@ -66,7 +66,7 @@ def connect(host="localhost", user=None, password="",
                     read_default_group=read_default_group,
                     autocommit=autocommit, echo=echo,
                     local_infile=local_infile, loop=loop, ssl=ssl,
-                    auth_plugin=auth_plugin, program_name=program_name)
+                    auth_plugin=auth_plugin, program_name=program_name, read_packet_timeout=read_packet_timeout)
     return _ConnectionContextManager(coro)
 
 
@@ -142,7 +142,7 @@ class Connection:
                  connect_timeout=None, read_default_group=None,
                  autocommit=False, echo=False,
                  local_infile=False, loop=None, ssl=None, auth_plugin='',
-                 program_name='', server_public_key=None):
+                 program_name='', server_public_key=None, read_packet_timeout=3):
         """
         Establish a connection to the MySQL database. Accepts several
         arguments:
@@ -219,6 +219,7 @@ class Connection:
         self._secure = False
         self.server_public_key = server_public_key
         self.salt = None
+        self.read_packet_timeout = read_packet_timeout
 
         from . import __version__
         self._connect_attrs = {
@@ -654,7 +655,7 @@ class Connection:
 
     async def _read_bytes(self, num_bytes):
         try:
-            data = await self._reader.readexactly(num_bytes)
+            data = await asyncio.wait_for(self._reader.readexactly(num_bytes), timeout=self.read_packet_timeout)
         except asyncio.IncompleteReadError as e:
             msg = "Lost connection to MySQL server during query"
             self.close()
